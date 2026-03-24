@@ -1,61 +1,105 @@
 import streamlit as st
-import time
-import random
+import streamlit.components.v1 as components
 
-# 1. إعدادات الصفحة
-st.set_page_config(page_title="Korra Snake", layout="centered")
+st.set_page_config(page_title="Korra Interactive Snake", layout="centered")
 
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap');
-    * { font-family: 'Cairo', sans-serif; text-align: center; }
-    .game-area { background-color: #0e1117; border: 5px solid #004a87; border-radius: 20px; padding: 20px; }
-    .snake-head { font-size: 40px; }
-    .food { font-size: 30px; border: 2px solid #ffb800; padding: 10px; border-radius: 10px; cursor: pointer; }
-    .score-text { color: #ffb800; font-size: 24px; font-weight: bold; }
-    </style>
-""", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #004a87;'>🐍 صيد خامات كورا بالثعبان</h1>", unsafe_allow_html=True)
+st.write("---")
 
-# 2. بيانات الأسئلة (الثعبان بياكلها)
-materials = [
-    {"q": "أين نضع 'كابلات السويدي'؟", "a": "⚡ كهرباء", "options": ["⚡ كهرباء", "🔧 ميكانيكا", "🏗️ مدني"]},
-    {"q": "أين نضع 'طلمبة التبريد'؟", "a": "🔧 ميكانيكا", "options": ["🏗️ مدني", "🔧 ميكانيكا", "⚡ كهرباء"]},
-    {"q": "أين نضع 'حديد التسليح'؟", "a": "🏗️ مدني", "options": ["🏗️ مدني", "⚡ كهرباء", "🔧 ميكانيكا"]}
+# قاعدة بيانات الأسئلة
+questions = [
+    {"q": "أين نضع 'كابلات السويدي'؟", "a": "⚡", "hint": "كهرباء"},
+    {"q": "أين نضع 'طلمبة الحريق'؟", "a": "🔧", "hint": "ميكانيكا"},
+    {"q": "أين نضع 'الخرسانة الجاهزة'؟", "a": "🏗️", "hint": "مدني"}
 ]
 
-# 3. إدارة حالة اللعبة
-if 'score' not in st.session_state:
-    st.session_state.score = 0
-if 'current_q' not in st.session_state:
-    st.session_state.current_q = random.choice(materials)
+import random
+current_q = random.choice(questions)
 
-# 4. واجهة اللعبة
-st.markdown('<h1 style="color:#004a87;">🐍 ثعبان المهندس الذكي</h1>', unsafe_allow_html=True)
-st.markdown(f'<p class="score-text">مجموع النقاط: {st.session_state.score}</p>', unsafe_allow_html=True)
+st.subheader(f"❓ {current_q['q']}")
+st.info(f"حرك الثعبان بالماوس ليوجه رأسه نحو أيقونة: {current_q['hint']}")
 
-st.markdown('<div class="game-area">', unsafe_allow_html=True)
-st.write(f"### ❓ السؤال: {st.session_state.current_q['q']}")
-st.markdown('<div class="snake-head">🐍</div>', unsafe_allow_html=True)
-st.write("👇")
+# كود اللعبة بلغة JavaScript و HTML5 Canvas
+game_html = f"""
+<div style="text-align: center;">
+    <canvas id="snakeGame" width="600" height="400" style="border:5px solid #004a87; border-radius:15px; background:#111; cursor:none;"></canvas>
+    <h2 id="scoreDisplay" style="color:#ffb800; font-family:Arial;">النقاط: 0</h2>
+</div>
 
-# محاكاة حركة الثعبان نحو الإجابات
-cols = st.columns(3)
-for i, option in enumerate(st.session_state.current_q['options']):
-    with cols[i]:
-        if st.button(option, key=f"opt_{i}"):
-            if option == st.session_state.current_q['a']:
-                st.balloons()
-                st.session_state.score += 20
-                st.success("يممممي! الثعبان أكل الإجابة الصح 😋")
-                time.sleep(1)
-                st.session_state.current_q = random.choice(materials)
-                st.rerun()
-            else:
-                st.error("أخ! الثعبان أكل إجابة غلط وتعب 🤢")
-                st.session_state.score -= 5
+<script>
+const canvas = document.getElementById("snakeGame");
+const ctx = canvas.getContext("2d");
+const scoreDisplay = document.getElementById("scoreDisplay");
 
-st.markdown('</div>', unsafe_allow_html=True)
+let score = 0;
+let snake = [{{x: 300, y: 200}}, {{x: 290, y: 200}}, {{x: 280, y: 200}}];
+let mouse = {{x: 300, y: 200}};
+let targets = [
+    {{emoji: "⚡", x: 100, y: 100, val: "⚡"}},
+    {{emoji: "🔧", x: 500, y: 100, val: "🔧"}},
+    {{emoji: "🏗️", x: 300, y: 350, val: "🏗️"}}
+];
 
-if st.button("ابدأ من جديد 🔄"):
-    st.session_state.score = 0
-    st.rerun()
+canvas.addEventListener('mousemove', (e) => {{
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+}});
+
+function update() {{
+    // حركة الرأس تتبع الماوس
+    let head = {{x: snake[0].x, y: snake[0].y}};
+    let angle = Math.atan2(mouse.y - head.y, mouse.x - head.x);
+    head.x += Math.cos(angle) * 4;
+    head.y += Math.sin(angle) * 4;
+
+    snake.unshift(head);
+    snake.pop();
+
+    // التحقق من الاصطدام بالأهداف
+    targets.forEach(t => {{
+        let dist = Math.hypot(head.x - t.x, head.y - t.y);
+        if (dist < 25) {{
+            if (t.val === "{current_q['a']}") {{
+                score += 10;
+                t.x = Math.random() * 550;
+                t.y = Math.random() * 350;
+                alert("✅ صح! استعد للسؤال التالي");
+                location.reload(); // تحديث للسؤال الجديد
+            }} else {{
+                score = Math.max(0, score - 5);
+                alert("❌ غلط! ابعد عن القسم ده");
+                head.x = 300; head.y = 200; // إعادة ضبط
+            }}
+        }}
+    }});
+}}
+
+function draw() {{
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // رسم الثعبان
+    snake.forEach((part, i) => {{
+        ctx.fillStyle = i === 0 ? "#ffb800" : "#004a87";
+        ctx.beginPath();
+        ctx.arc(part.x, part.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+    }});
+
+    // رسم الأهداف
+    ctx.font = "30px Arial";
+    targets.forEach(t => {{
+        ctx.fillText(t.emoji, t.x - 15, t.y + 10);
+    }});
+
+    scoreDisplay.innerText = "النقاط: " + score;
+    update();
+    requestAnimationFrame(draw);
+}}
+
+draw();
+</script>
+"""
+
+# تشغيل المكون
+components.html(game_html, height=550)
