@@ -3,105 +3,109 @@ import pandas as pd
 import os
 import plotly.express as px
 
-# --- 1. إعدادات الهوية البصرية (Professional Dark/Light UI) ---
-st.set_page_config(page_title="Korra Inventory Dashboard", layout="wide")
+# --- 1. إعدادات الواجهة الاحترافية (UI/UX) ---
+st.set_page_config(page_title="Korra Inventory Hub", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
     * { font-family: 'Cairo', sans-serif; direction: rtl; }
-    .stApp { background-color: #f8f9fa; }
-    .main-header { background: linear-gradient(90deg, #004a87, #002d50); color: white; padding: 30px; border-radius: 15px; text-align: center; margin-bottom: 25px; }
-    .category-card { background: white; padding: 20px; border-radius: 12px; border-top: 5px solid #004a87; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; }
-    .stat-number { font-size: 24px; font-weight: bold; color: #004a87; }
-    .stat-label { color: #666; font-size: 14px; }
+    .stApp { background-color: #f4f7f9; }
+    .stat-card {
+        background: white; padding: 25px; border-radius: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        text-align: center; border-bottom: 5px solid #004a87;
+    }
+    .stat-value { font-size: 32px; font-weight: bold; color: #004a87; margin: 10px 0; }
+    .stat-label { font-size: 16px; color: #555; font-weight: 600; }
+    .main-title { background: #004a87; color: white; padding: 25px; border-radius: 15px; text-align: center; margin-bottom: 25px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. محرك التصنيف والذكاء (Core Logic) ---
-class InventoryEngine:
+# --- 2. محرك معالجة وتصنيف البيانات ---
+class KorraSmartEngine:
     @staticmethod
-    def get_category(desc):
+    def classify(desc):
         desc = str(desc).lower()
-        if any(x in desc for x in ['cable', 'wire', 'كهربا', 'كابل', 'سلك', 'breaker']): return '⚡ قطاع الكهرباء'
-        if any(x in desc for x in ['pipe', 'valve', 'pump', 'محبس', 'ماسور', 'طلمب']): return '🔧 قطاع الميكانيكا'
-        if any(x in desc for x in ['steel', 'cement', 'حديد', 'خرسان', 'مدنى']): return '🏗️ قطاع المدني'
-        if any(x in desc for x in ['gasket', 'seal', 'جوان', 'سيول', 'bearing']): return '⚙️ قطع غيار'
+        if any(x in desc for x in ['cable', 'wire', 'كهربا', 'كابل', 'سلك']): return '⚡ الكهرباء'
+        if any(x in desc for x in ['pipe', 'valve', 'pump', 'محبس', 'ماسور']): return '🔧 الميكانيكا'
+        if any(x in desc for x in ['steel', 'cement', 'حديد', 'خرسان']): return '🏗️ المدني'
         return '📦 أصناف عامة'
 
     @staticmethod
     @st.cache_data
-    def load_data():
+    def get_inventory():
         files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls'))]
         if not files: return None
-        all_dfs = []
+        
+        all_data = []
         for f in files:
             try:
-                temp_df = pd.read_excel(f, engine='openpyxl')
-                temp_df['Source_File'] = f
-                all_dfs.append(temp_df)
+                # محاولة قراءة الملف مع تجاهل أخطاء التنسيق
+                df = pd.read_excel(f, engine='openpyxl').fillna(0)
+                df['Source'] = f
+                all_data.append(df)
             except: continue
-        if not all_dfs: return None
-        df = pd.concat(all_dfs, ignore_index=True)
-        # تحديد العمود الثاني كاسم للخامة
-        desc_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]
-        df['Category'] = df[desc_col].apply(InventoryEngine.get_category)
-        return df, desc_col
+        
+        if not all_data: return None
+        full_df = pd.concat(all_data, ignore_index=True)
+        
+        # تحديد عمود الوصف والكمية (بافتراض الترتيب الشائع)
+        desc_col = full_df.columns[1] if len(full_df.columns) > 1 else full_df.columns[0]
+        # البحث عن عمود يحتوي على كلمة "كمية" أو "Qty" أو "Balance"
+        qty_col = next((c for c in full_df.columns if any(k in str(c).lower() for k in ['qty', 'كمي', 'bal', 'stock'])), None)
+        
+        full_df['Group'] = full_df[desc_col].apply(KorraSmartEngine.classify)
+        return full_df, desc_col, qty_col
 
-# --- 3. بناء لوحة التحكم ---
-st.markdown('<div class="main-header"><h1>📊 نظام الرصد الذكي للمخزون - Korra Energi</h1><p>تحليل فوري للمجموعات والكميات المتاحة</p></div>', unsafe_allow_html=True)
+# --- 3. بناء لوحة التحكم المرئية ---
+st.markdown('<div class="main-header"><h1>🔮 Korra Asset Dashboard</h1><p>نظرة شاملة على المتاح في المخازن</p></div>', unsafe_allow_html=True)
 
-data_pack = InventoryEngine.load_data()
+inventory_data = KorraSmartEngine.get_inventory()
 
-if data_pack:
-    df, desc_col = data_pack
+if inventory_data:
+    df, desc_name, qty_name = inventory_data
     
-    # صف الملخص العلوي
-    cols = st.columns(4)
-    categories = df['Category'].unique()
+    # صف البطاقات العلوية (المجموعات)
+    st.subheader("📊 حالة المخزون الحالية")
+    groups = df['Group'].value_counts()
+    cols = st.columns(len(groups))
     
-    for i, cat in enumerate(categories[:4]): # عرض أول 4 تصنيفات في الأعلى
-        cat_count = len(df[df['Category'] == cat])
+    for i, (group_name, count) in enumerate(groups.items()):
         with cols[i]:
             st.markdown(f"""
-                <div class="category-card">
-                    <div class="stat-label">{cat}</div>
-                    <div class="stat-number">{cat_count}</div>
-                    <div style="font-size:12px; color:#999;">خامة مسجلة</div>
+                <div class="stat-card">
+                    <div class="stat-label">{group_name}</div>
+                    <div class="stat-value">{count}</div>
+                    <div style="color:#888;">صنف مسجل</div>
                 </div>
             """, unsafe_allow_html=True)
 
     st.divider()
 
-    # توزيع المحتوى: البحث والتصفية
-    col_side, col_main = st.columns([1, 3])
+    # قسم التفاصيل الذكي
+    col_chart, col_list = st.columns([1, 2])
     
-    with col_side:
-        st.subheader("🎯 مصفاة المخزون")
-        selected_cat = st.selectbox("اختر المجموعة:", ["الكل"] + list(categories))
-        search_query = st.text_input("🔍 بحث سريع في المجموعة:")
-        
-    with col_main:
-        filtered_df = df.copy()
-        if selected_cat != "الكل":
-            filtered_df = filtered_df[filtered_df['Category'] == selected_cat]
-        
-        if search_query:
-            filtered_df = filtered_df[filtered_df.apply(lambda r: r.astype(str).str.contains(search_query, case=False).any(), axis=1)]
+    with col_chart:
+        st.subheader("📈 توزيع المجموعات")
+        # حل مشكلة ValueError بضمان وجود بيانات قبل الرسم
+        chart_data = groups.reset_index()
+        chart_data.columns = ['المجموعة', 'العدد']
+        fig = px.pie(chart_data, values='العدد', names='المجموعة', hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
+        st.plotly_chart(fig, use_container_width=True)
 
-        st.markdown(f"### القائمة التفصيلية: {selected_cat}")
-        # عرض البيانات بشكل احترافي مع التركيز على الوصف والكمية
-        display_cols = [desc_col] + [c for c in filtered_df.columns if c not in [desc_col, 'Category', 'Source_File']]
-        st.dataframe(filtered_df[display_cols], use_container_width=True, height=500)
-
-    # رسم بياني مريح للعين
-    st.divider()
-    st.subheader("📈 نظرة عامة على حجم المجموعات")
-    fig = px.bar(df['Category'].value_counts().reset_index(), 
-                 x='index', y='Category', 
-                 labels={'index':'المجموعة', 'Category':'عدد الأصناف'},
-                 color='Category', color_discrete_sequence=px.colors.qualitative.Pastel)
-    st.plotly_chart(fig, use_container_width=True)
+    with col_list:
+        st.subheader("📋 مراجعة المتاح")
+        selected_grp = st.selectbox("اختر مجموعة لعرض تفاصيلها:", ["الكل"] + list(groups.index))
+        
+        filtered = df if selected_grp == "الكل" else df[df['Group'] == selected_grp]
+        
+        # عرض أهم الأعمدة فقط للراحة البصرية
+        important_cols = [desc_name]
+        if qty_name: important_cols.append(qty_name)
+        important_cols.append('Source')
+        
+        st.dataframe(filtered[important_cols], use_container_width=True, height=400)
 
 else:
-    st.info("👋 النظام جاهز للعمل. من فضلك ارفع ملف إكسيل ببيانات المخزون في المستودع.")
+    st.info("👋 بانتظار رفع ملفات الإكسيل (data.xlsx) للبدء في تحليل المجموعات.")
