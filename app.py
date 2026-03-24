@@ -2,50 +2,40 @@ import streamlit as st
 import streamlit.components.v1 as components
 import random
 
-# 1. إعدادات الصفحة
 st.set_page_config(page_title="Korra Infinite Snake", layout="centered")
 
-st.markdown("<h1 style='text-align: center; color: #004a87;'>🐍 صائد الخامات اللانهائي</h1>", unsafe_allow_html=True)
-
-# 2. بنك الأسئلة التفصيلي الضخم
-if 'database' not in st.session_state:
-    st.session_state.database = [
-        # كهرباء
-        {"item": "كابلات السويدي 3*240", "cat": "⚡", "hint": "كهرباء"},
-        {"item": "قواطع هوائية (ACB)", "cat": "⚡", "hint": "كهرباء"},
-        {"item": "محولات زيتية 2000 KVA", "cat": "⚡", "hint": "كهرباء"},
-        {"item": "لوحات تحسين معامل القدرة", "cat": "⚡", "hint": "كهرباء"},
-        {"item": "كشافات إنارة شوارع LED", "cat": "⚡", "hint": "كهرباء"},
-        # ميكانيكا
-        {"item": "طلمبات طرد مركزي (Chilled)", "cat": "🔧", "hint": "ميكانيكا"},
-        {"item": "محابس فراشة (Butterfly Valve)", "cat": "🔧", "hint": "ميكانيكا"},
-        {"item": "مواسير حديد أسود (Seamless)", "cat": "🔧", "hint": "ميكانيكا"},
-        {"item": "وحدات مناولة الهواء (AHU)", "cat": "🔧", "hint": "ميكانيكا"},
-        {"item": "رؤوس رشاشات حريق (Sprinklers)", "cat": "🔧", "hint": "ميكانيكا"},
-        # مدني
-        {"item": "خرسانة جهد 350 نيوتن", "cat": "🏗️", "hint": "مدني"},
-        {"item": "حديد تسليح قطر 16 مم", "cat": "🏗️", "hint": "مدني"},
-        {"item": "طوب أسمنتي مصمت", "cat": "🏗️", "hint": "مدني"},
-        {"item": "مواد عزل مائي (سيكا)", "cat": "🏗️", "hint": "مدني"},
-        {"item": "شدات خشبية منزلقة", "cat": "🏗️", "hint": "مدني"}
-    ]
+# --- 1. بنك الأسئلة التفصيلي (تقدر تضيف مئات الأصناف هنا) ---
+materials_pool = [
+    {"n": "كابلات السويدي 3*240 مم", "cat": "⚡", "hint": "كهرباء"},
+    {"n": "قاطع تيار ABB 100A", "cat": "⚡", "hint": "كهرباء"},
+    {"n": "محبس سكين 4 بوصة Cast Iron", "cat": "🔧", "hint": "ميكانيكا"},
+    {"n": "طلمبة طرد مركزي Grundfos", "cat": "🔧", "hint": "ميكانيكا"},
+    {"n": "حديد تسليح عز 16 مم", "cat": "🏗️", "hint": "مدني"},
+    {"n": "أسمنت بورتلاندي مقاوم للكبريتات", "cat": "🏗️", "hint": "مدني"},
+    {"n": "وصلة مرنة (Flexible Joint) للنظام", "cat": "🔧", "hint": "ميكانيكا"},
+    {"n": "لوحة تحكم تحسين معامل القدرة", "cat": "⚡", "hint": "كهرباء"},
+    {"n": "رمل سيليكا ناعم للمباني", "cat": "🏗️", "hint": "مدني"},
+    {"n": "عداد مياه ديجيتال 2 بوصة", "cat": "🔧", "hint": "ميكانيكا"}
+]
 
 # اختيار سؤال عشوائي في كل "ريفرش"
-current_q = random.choice(st.session_state.database)
+current_q = random.choice(materials_pool)
 
 st.markdown(f"""
-    <div style="background:#e1f5fe; padding:15px; border-radius:10px; border-right:5px solid #0288d1; text-align:right;">
-        <h3 style="margin:0;">🎯 المهمة الحالية:</h3>
-        <p style="font-size:20px;">صنف الخامة التفصيلية: <b>{current_q['item']}</b></p>
-        <p style="color:#555;">(وجه رأس الثعبان نحو أيقونة: {current_q['hint']})</p>
+    <div style="text-align:center;">
+        <h1 style='color:#004a87;'>🐍 تحدي الثعبان الهندسي اللانهائي</h1>
+        <div style='background:#f0f2f6; padding:15px; border-radius:10px; border:2px solid #004a87;'>
+            <h2 style='color:#333;'>السؤال: {current_q['n']}</h2>
+            <p style='color:#666;'>وجه الثعبان نحو أيقونة: <b>{current_q['hint']}</b></p>
+        </div>
     </div>
 """, unsafe_allow_html=True)
 
-# 3. محرك اللعبة (JavaScript)
+# --- 2. محرك اللعبة (JavaScript + HTML5 Canvas) ---
 game_html = f"""
 <div style="text-align: center;">
-    <canvas id="snakeGame" width="650" height="400" style="border:5px solid #004a87; border-radius:20px; background:#000; cursor:none;"></canvas>
-    <h2 id="scoreDisplay" style="color:#ffb800; font-family:Arial;">النقاط: 0</h2>
+    <canvas id="snakeGame" width="600" height="400" style="border:5px solid #004a87; border-radius:15px; background:#111; cursor:crosshair;"></canvas>
+    <h2 id="scoreDisplay" style="color:#ffb800; font-family:Arial; direction:rtl;">النقاط: 0</h2>
 </div>
 
 <script>
@@ -53,17 +43,18 @@ const canvas = document.getElementById("snakeGame");
 const ctx = canvas.getContext("2d");
 const scoreDisplay = document.getElementById("scoreDisplay");
 
-let score = localStorage.getItem('snakeScore') || 0;
+let score = parseInt(localStorage.getItem('korra_score')) || 0;
 scoreDisplay.innerText = "النقاط: " + score;
 
 let snake = [];
-for(let i=0; i<10; i++) snake.push({{x: 325, y: 200}});
-let mouse = {{x: 325, y: 200}};
+for(let i=10; i>=0; i--) snake.push({{x: 300 + i*5, y: 200}});
+let mouse = {{x: 300, y: 200}};
 
+// توزيع الأهداف في الزوايا بشكل احترافي
 let targets = [
-    {{emoji: "⚡", x: 100, y: 100, val: "⚡"}},
-    {{emoji: "🔧", x: 550, y: 100, val: "🔧"}},
-    {{emoji: "🏗️", x: 325, y: 350, val: "🏗️"}}
+    {{emoji: "⚡", x: 80, y: 80, val: "⚡"}},
+    {{emoji: "🔧", x: 520, y: 80, val: "🔧"}},
+    {{emoji: "🏗️", x: 300, y: 340, val: "🏗️"}}
 ];
 
 canvas.addEventListener('mousemove', (e) => {{
@@ -76,8 +67,10 @@ function update() {{
     let head = {{x: snake[0].x, y: snake[0].y}};
     let angle = Math.atan2(mouse.y - head.y, mouse.x - head.x);
     
-    head.x += Math.cos(angle) * 5;
-    head.y += Math.sin(angle) * 5;
+    // سرعة الثعبان تزيد مع زيادة النقاط!
+    let speed = 4 + (score / 100);
+    head.x += Math.cos(angle) * speed;
+    head.y += Math.sin(angle) * speed;
 
     snake.unshift(head);
     snake.pop();
@@ -86,15 +79,15 @@ function update() {{
         let dist = Math.hypot(head.x - t.x, head.y - t.y);
         if (dist < 30) {{
             if (t.val === "{current_q['cat']}") {{
-                score = parseInt(score) + 20;
-                localStorage.setItem('snakeScore', score);
-                alert("✅ هندسة صح! أكلت: {current_q['item']}");
-                window.location.reload(); 
+                score += 10;
+                localStorage.setItem('korra_score', score);
+                alert("✅ برافو يا بشمهندس! إجابة صحيحة.");
+                window.parent.location.reload(); // طلب سؤال جديد
             }} else {{
-                score = Math.max(0, parseInt(score) - 10);
-                localStorage.setItem('snakeScore', score);
-                alert("❌ غلط! دي مش {current_q['hint']}");
-                head.x = 325; head.y = 200;
+                score = Math.max(0, score - 5);
+                localStorage.setItem('korra_score', score);
+                alert("❌ خطأ! ركز في تصنيف الخامات.");
+                head.x = 300; head.y = 200;
             }}
         }}
     }});
@@ -103,38 +96,36 @@ function update() {{
 function draw() {{
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // رسم شبكة خفيفة (Grid) لشكل احترافي
+    // رسم شبكة هندسية خلفية (Grid)
     ctx.strokeStyle = "#222";
-    for(let i=0; i<canvas.width; i+=40) {{ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke(); }}
-    for(let i=0; i<canvas.height; i+=40) {{ ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke(); }}
+    for(let i=0; i<canvas.width; i+=40) {{ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,400); ctx.stroke(); }}
+    for(let j=0; j<canvas.height; j+=40) {{ ctx.beginPath(); ctx.moveTo(0,j); ctx.lineTo(600,j); ctx.stroke(); }}
 
-    // رسم الثعبان بشكل انسيابي
+    // رسم الثعبان (تدرج ألوان كورا)
     snake.forEach((part, i) => {{
-        ctx.fillStyle = i === 0 ? "#ffb800" : "rgba(0, 74, 135, " + (1 - i/snake.length) + ")";
+        ctx.fillStyle = i === 0 ? "#ffb800" : "#004a87";
         ctx.beginPath();
-        ctx.arc(part.x, part.y, 12 - (i*0.5), 0, Math.PI * 2);
+        ctx.arc(part.x, part.y, 10 - (i*0.1), 0, Math.PI * 2);
         ctx.fill();
     }});
 
-    // رسم الأهداف
+    // رسم الأهداف (الأقسام)
     ctx.font = "35px Arial";
     targets.forEach(t => {{
-        ctx.shadowBlur = 15; ctx.shadowColor = "white";
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "white";
         ctx.fillText(t.emoji, t.x - 17, t.y + 12);
         ctx.shadowBlur = 0;
     }});
 
-    requestAnimationFrame(() => {{
-        update();
-        draw();
-    }});
+    update();
+    requestAnimationFrame(draw);
 }}
-
 draw();
 </script>
 """
 
 components.html(game_html, height=550)
 
-if st.button("تصفير النقاط والبدء من جديد ♻️"):
-    st.components.v1.html("<script>localStorage.setItem('snakeScore', 0); window.location.reload();</script>")
+if st.button("تصفير النقاط والبدء من جديد 🔄"):
+    st.components.v1.html("<script>localStorage.setItem('korra_score', 0); window.parent.location.reload();</script>")
