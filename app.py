@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import plotly.express as px
 
-# --- 1. إعدادات الواجهة الاحترافية (UI/UX) ---
+# 1. إعدادات الواجهة الاحترافية لشركة Korra
 st.set_page_config(page_title="Korra Inventory Hub", layout="wide")
 
 st.markdown("""
@@ -11,101 +11,60 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
     * { font-family: 'Cairo', sans-serif; direction: rtl; }
     .stApp { background-color: #f4f7f9; }
-    .stat-card {
-        background: white; padding: 25px; border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        text-align: center; border-bottom: 5px solid #004a87;
-    }
-    .stat-value { font-size: 32px; font-weight: bold; color: #004a87; margin: 10px 0; }
-    .stat-label { font-size: 16px; color: #555; font-weight: 600; }
-    .main-title { background: #004a87; color: white; padding: 25px; border-radius: 15px; text-align: center; margin-bottom: 25px; }
+    .main-header { background: #004a87; color: white; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px; }
+    .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #004a87; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. محرك معالجة وتصنيف البيانات ---
-class KorraSmartEngine:
-    @staticmethod
-    def classify(desc):
-        desc = str(desc).lower()
-        if any(x in desc for x in ['cable', 'wire', 'كهربا', 'كابل', 'سلك']): return '⚡ الكهرباء'
-        if any(x in desc for x in ['pipe', 'valve', 'pump', 'محبس', 'ماسور']): return '🔧 الميكانيكا'
-        if any(x in desc for x in ['steel', 'cement', 'حديد', 'خرسان']): return '🏗️ المدني'
-        return '📦 أصناف عامة'
-
-    @staticmethod
-    @st.cache_data
-    def get_inventory():
-        files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls'))]
-        if not files: return None
-        
-        all_data = []
-        for f in files:
-            try:
-                # محاولة قراءة الملف مع تجاهل أخطاء التنسيق
-                df = pd.read_excel(f, engine='openpyxl').fillna(0)
-                df['Source'] = f
-                all_data.append(df)
-            except: continue
-        
-        if not all_data: return None
-        full_df = pd.concat(all_data, ignore_index=True)
-        
-        # تحديد عمود الوصف والكمية (بافتراض الترتيب الشائع)
-        desc_col = full_df.columns[1] if len(full_df.columns) > 1 else full_df.columns[0]
-        # البحث عن عمود يحتوي على كلمة "كمية" أو "Qty" أو "Balance"
-        qty_col = next((c for c in full_df.columns if any(k in str(c).lower() for k in ['qty', 'كمي', 'bal', 'stock'])), None)
-        
-        full_df['Group'] = full_df[desc_col].apply(KorraSmartEngine.classify)
-        return full_df, desc_col, qty_col
-
-# --- 3. بناء لوحة التحكم المرئية ---
-st.markdown('<div class="main-header"><h1>🔮 Korra Asset Dashboard</h1><p>نظرة شاملة على المتاح في المخازن</p></div>', unsafe_allow_html=True)
-
-inventory_data = KorraSmartEngine.get_inventory()
-
-if inventory_data:
-    df, desc_name, qty_name = inventory_data
+# 2. محرك معالجة البيانات (مع حل مشكلة الأسماء المكررة)
+@st.cache_data
+def load_and_clean_data():
+    files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls'))]
+    if not files: return None
     
-    # صف البطاقات العلوية (المجموعات)
-    st.subheader("📊 حالة المخزون الحالية")
-    groups = df['Group'].value_counts()
-    cols = st.columns(len(groups))
+    all_data = []
+    for f in files:
+        try:
+            df = pd.read_excel(f, engine='openpyxl')
+            # حل مشكلة الصورة 12: حذف الأعمدة المكررة تلقائياً
+            df = df.loc[:, ~df.columns.duplicated()]
+            df = df.fillna("---")
+            df['المصدر'] = f
+            all_data.append(df)
+        except: continue
     
-    for i, (group_name, count) in enumerate(groups.items()):
-        with cols[i]:
-            st.markdown(f"""
-                <div class="stat-card">
-                    <div class="stat-label">{group_name}</div>
-                    <div class="stat-value">{count}</div>
-                    <div style="color:#888;">صنف مسجل</div>
-                </div>
-            """, unsafe_allow_html=True)
+    return pd.concat(all_data, ignore_index=True) if all_data else None
+
+# 3. بناء لوحة التحكم
+st.markdown('<div class="main-header"><h1>📊 مستودع Korra الرقمي للأصول</h1></div>', unsafe_allow_html=True)
+
+df = load_and_clean_data()
+
+if df is not None:
+    # عرض إحصائيات سريعة (البطاقات)
+    c1, c2, c3 = st.columns(3)
+    with c1: st.markdown(f'<div class="stat-card"><h3>{len(df)}</h3><p>إجمالي الأصناف</p></div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="stat-card"><h3>{len(df.columns)-1}</h3><p>حقول البيانات</p></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="stat-card"><h3>{df["المصدر"].nunique()}</h3><p>ملفات نشطة</p></div>', unsafe_allow_html=True)
 
     st.divider()
-
-    # قسم التفاصيل الذكي
-    col_chart, col_list = st.columns([1, 2])
     
-    with col_chart:
-        st.subheader("📈 توزيع المجموعات")
-        # حل مشكلة ValueError بضمان وجود بيانات قبل الرسم
-        chart_data = groups.reset_index()
-        chart_data.columns = ['المجموعة', 'العدد']
-        fig = px.pie(chart_data, values='العدد', names='المجموعة', hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
+    tab1, tab2 = st.tabs(["📋 استعراض المخزون المتاح", "📈 تحليل البيانات"])
+    
+    with tab1:
+        search = st.text_input("🔍 ابحث عن أي خامة (مثلاً: كابل، محبس، حديد)...")
+        if search:
+            results = df[df.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)]
+            st.dataframe(results, use_container_width=True)
+        else:
+            st.dataframe(df, use_container_width=True)
+            
+    with tab2:
+        # حل مشكلة الصورة 1: التأكد من وجود بيانات قبل الرسم
+        st.subheader("توزيع الأصناف حسب ملف المصدر")
+        file_stats = df['المصدر'].value_counts().reset_index()
+        file_stats.columns = ['الملف', 'العدد']
+        fig = px.pie(file_stats, values='العدد', names='الملف', hole=0.4, color_discrete_sequence=px.colors.qualitative.Set3)
         st.plotly_chart(fig, use_container_width=True)
-
-    with col_list:
-        st.subheader("📋 مراجعة المتاح")
-        selected_grp = st.selectbox("اختر مجموعة لعرض تفاصيلها:", ["الكل"] + list(groups.index))
-        
-        filtered = df if selected_grp == "الكل" else df[df['Group'] == selected_grp]
-        
-        # عرض أهم الأعمدة فقط للراحة البصرية
-        important_cols = [desc_name]
-        if qty_name: important_cols.append(qty_name)
-        important_cols.append('Source')
-        
-        st.dataframe(filtered[important_cols], use_container_width=True, height=400)
-
 else:
-    st.info("👋 بانتظار رفع ملفات الإكسيل (data.xlsx) للبدء في تحليل المجموعات.")
+    st.warning("👋 بانتظار رفع ملف data.xlsx في GitHub لبدء عرض لوحة التحكم.")
