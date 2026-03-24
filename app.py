@@ -1,87 +1,90 @@
 import streamlit as st
 import pandas as pd
 import os
-from difflib import get_close_matches
 
-# 1. إعدادات الواجهة الاحترافية
-st.set_page_config(page_title="Korra AI Search", layout="wide")
+# 1. إعدادات الصفحة الاحترافية
+st.set_page_config(page_title="Korra Enterprise AI", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
-    * { font-family: 'Cairo', sans-serif; direction: rtl; text-align: right; }
-    .main-header { background: linear-gradient(90deg, #004a87, #002d50); color: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; }
-    .info-card { background: #f0f7ff; padding: 15px; border-radius: 10px; border-right: 5px solid #004a87; margin-bottom: 10px; }
+    * { font-family: 'Cairo', sans-serif; direction: rtl; }
+    .stDataFrame { border: 1px solid #004a87; border-radius: 10px; }
+    .main-title { background: #004a87; color: white; padding: 20px; border-radius: 15px; text-align: center; }
+    .search-box { border: 2px solid #004a87 !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. قاموس الذكاء الاصطناعي للهوية الهندسية (Knowledge Base)
-# ده "المخ" اللي بيعرف الخامة بتستخدم في إيه
-AI_KNOWLEDGE = {
-    "كابل": "نقل الطاقة الكهربائية وتغذية اللوحات الرئيسية والفرعية.",
-    "محبس": "التحكم في تدفق السوائل (مياه، حريق، تبريد) ومنع الارتجاع.",
-    "ماسورة": "نقل الموائع مثل مياه التبريد (Chilled Water) أو مكافحة الحريق.",
-    "قاطع": "حماية الدوائر الكهربائية من زيادة الحمل (Overload) أو القصر (Short Circuit).",
-    "طلمبة": "رفع ضغط المياه أو السوائل لضمان وصولها للنقاط المطلوبة.",
-    "خرسانة": "الأعمال الإنشائية والأساسات والهياكل الخرسانية للمباني.",
-    "حديد": "تسليح العناصر الإنشائية لزيادة قدرتها على تحمل أحمال الشد.",
-    "محول": "تحويل الجهد الكهربائي من المتوسط إلى المنخفض لتشغيل المعدات."
+# 2. قاموس الذكاء الاصطناعي الموسع (دليل المهندس)
+AI_GUIDE = {
+    "كابل": "نقل وتوزيع الطاقة الكهربائية في المواقع والمباني.",
+    "محبس": "التحكم في تدفق المياه، سواء في أنظمة الحريق أو التبريد المركزي.",
+    "ماسورة": "مسارات لنقل السوائل والغازات بضغوط وأقطار مختلفة.",
+    "قاطع": "تأمين اللوحات الكهربائية ضد الارتفاع المفاجئ في التيار.",
+    "طلمبة": "وحدات ضخ ميكانيكية لتدوير المياه في الشبكات.",
+    "خرسانة": "الأساس الإنشائي للمباني، تختلف رتبتها حسب نوع الإضافات.",
+    "حديد": "عنصر التسليح الأساسي لمقاومة أحمال الشد في المنشآت."
 }
 
-# 3. محرك البحث الذكي
-def smart_search(query, dataframe):
-    query = query.lower()
-    # تنظيف الأعمدة من الأسماء المكررة
-    df_clean = dataframe.loc[:, ~dataframe.columns.duplicated()]
-    
-    # البحث عن كلمات دلالية في القاموس
-    usage = "لم يتم العثور على وصف دقيق في قاعدة البيانات، ولكن إليك النتائج من الشيت:"
-    for key in AI_KNOWLEDGE:
-        if key in query:
-            usage = AI_KNOWLEDGE[key]
-            break
-            
-    # البحث المرن في الشيت (Fuzzy Matching)
-    # بيبحث في كل الصفوف والأعمدة عن أي كلمة قريبة من الاستعلام
-    mask = df_clean.apply(lambda row: row.astype(str).str.contains(query.split()[0], case=False).any(), axis=1)
-    results = df_clean[mask]
-    
-    return usage, results
-
-# 4. بناء التطبيق
-st.markdown('<div class="main-header"><h1 style="color:white; text-align:center;">🔮 محرك بحث Korra الذكي للأصول</h1></div>', unsafe_allow_html=True)
-
-# قراءة الملف (data.xlsx)
-if os.path.exists('data.xlsx'):
+# 3. محرك قراءة وتنظيف البيانات
+@st.cache_data
+def get_clean_data():
+    if not os.path.exists('data.xlsx'):
+        return None
     try:
+        # قراءة الشيت مع التأكد من عدم ضياع أي بيانات
         df = pd.read_excel('data.xlsx', engine='openpyxl')
+        # تنظيف أسامي الأعمدة المكررة أو الفارغة
+        df.columns = [str(c).strip() if not pd.isna(c) else f"Unnamed_{i}" for i, c in enumerate(df.columns)]
+        return df.fillna("غير مسجل")
+    except:
+        return None
+
+# 4. بناء الواجهة
+st.markdown('<div class="main-title"><h1>🔮 نظام Korra للبحث الذكي عن الأصول</h1></div>', unsafe_allow_html=True)
+
+df = get_clean_data()
+
+if df is not None:
+    # شريط البحث العلوي
+    search_query = st.text_input("🎯 ابحث عن أي خامة أو كود أو وظيفة هندسية:", placeholder="مثلاً: ما هو استخدام محابس السكين؟")
+
+    if search_query:
+        # أ) محرك الذكاء الاصطناعي للوصف
+        with st.expander("📝 التحليل الهندسي للخامة (AI Insights)", expanded=True):
+            found_desc = False
+            for key, desc in AI_GUIDE.items():
+                if key in search_query:
+                    st.info(f"**الاستخدام الشائع:** {desc}")
+                    found_desc = True
+                    break
+            if not found_desc:
+                st.write("يبحث النظام حالياً في الشيت عن أقرب تطابق فني...")
+
+        # ب) محرك البحث العميق في الجدول (Deep Filter)
+        # بيبحث في كل كلمة في الجملة بشكل منفصل لضمان أعلى دقة
+        keywords = search_query.split()
+        mask = df.apply(lambda row: all(any(k.lower() in str(val).lower() for val in row) for k in keywords), axis=1)
+        results = df[mask]
+
+        # ج) عرض النتائج
+        st.divider()
+        st.subheader(f"📍 النتائج المطابقة من واقع البيانات المرفوعة ({len(results)} نتيجة)")
         
-        search_query = st.text_input("🔍 اكتب اسم الخامة (بالعربي أو الإنجليزي) لتعرف استخدامها وأين توجد:", placeholder="مثلاً: كابل، محبس، طلمبة...")
-        
-        if search_query:
-            usage, results = smart_search(search_query, df)
+        if not results.empty:
+            # عرض الجدول بشكل كامل وواضح
+            st.dataframe(
+                results, 
+                use_container_width=True, 
+                height=500,
+                column_config={"Source": st.column_config.TextColumn("ملف المصدر", width="medium")}
+            )
             
-            col1, col2 = st.columns([1, 2])
-            
-            with col1:
-                st.markdown(f"""
-                <div class="info-card">
-                    <h4 style="color:#004a87;">💡 الاستخدام الهندسي:</h4>
-                    <p style="font-size:18px;">{usage}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-            with col2:
-                st.subheader("📍 النتائج المطابقة في المخزن:")
-                if not results.empty:
-                    st.success(f"وجدنا {len(results)} سجل مطابق لطلبك.")
-                    st.dataframe(results, use_container_width=True)
-                else:
-                    st.warning("لم نجد سجلات مطابقة تماماً في الشيت، حاول كتابة كلمة أبسط.")
+            # ميزة التحميل
+            csv = results.to_csv(index=False).encode('utf-8-sig')
+            st.download_button("📥 تحميل النتائج كملف Excel", csv, "search_results.csv", "text/csv")
         else:
-            st.info("👋 ابدأ بكتابة اسم أي خامة في خانة البحث أعلاه.")
-            
-    except Exception as e:
-        st.error(f"خطأ في قراءة الملف: {e}")
+            st.warning("لم نجد نتائج مطابقة تماماً في الشيت. جرب كتابة اسم الخامة بشكل مختصر (مثل: كابل بدلاً من كابلات).")
+
 else:
-    st.warning("⚠️ ملف data.xlsx غير موجود. من فضلك ارفعه على GitHub ليعمل محرك البحث.")
+    st.error("❌ ملف 'data.xlsx' مش موجود! ارفع الملف على GitHub الأول عشان أقدر أطلعلك نتايج حقيقية.")
