@@ -1,112 +1,87 @@
 import streamlit as st
-import streamlit.components.v1 as components
+import pandas as pd
+import os
+from difflib import get_close_matches
 
-st.set_page_config(page_title="Korra Sniper Challenge", layout="centered")
+# 1. إعدادات الواجهة الاحترافية
+st.set_page_config(page_title="Korra AI Search", layout="wide")
 
-st.markdown("<h1 style='text-align: center; color: #d32f2f;'>🦅 تحدي القناص: صيد الطيور السريعة</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-weight: bold;'>تحذير: الطيور سريعة جداً والمهمة صعبة!</p>", unsafe_allow_html=True)
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+    * { font-family: 'Cairo', sans-serif; direction: rtl; text-align: right; }
+    .main-header { background: linear-gradient(90deg, #004a87, #002d50); color: white; padding: 20px; border-radius: 15px; margin-bottom: 20px; }
+    .info-card { background: #f0f7ff; padding: 15px; border-radius: 10px; border-right: 5px solid #004a87; margin-bottom: 10px; }
+    </style>
+""", unsafe_allow_html=True)
 
-game_html = """
-<div style="text-align: center;">
-    <canvas id="sniperGame" width="700" height="450" style="border:5px solid #333; border-radius:15px; background: linear-gradient(to bottom, #87CEEB, #E0F7FA); cursor: none;"></canvas>
-    <div style="margin-top:10px; font-family:Arial;">
-        <h2 style="color:#d32f2f; display:inline;">النقاط: <span id="score">0</span></h2>
-        <h3 style="color:#333; margin-left:20px; display:inline;">الطلقات الضائعة: <span id="misses">0</span></h3>
-    </div>
-    <button onclick="window.location.reload()" style="margin-top:15px; padding:10px 25px; background:#333; color:white; border:none; border-radius:8px; cursor:pointer;">إعادة المحاولة 🔄</button>
-</div>
-
-<script>
-const canvas = document.getElementById("sniperGame");
-const ctx = canvas.getContext("2d");
-const scoreEl = document.getElementById("score");
-const missEl = document.getElementById("misses");
-
-let score = 0;
-let misses = 0;
-let mouse = { x: 350, y: 225 };
-let birds = [];
-
-// إنشاء طائر جديد بخصائص عشوائية
-function createBird() {
-    return {
-        x: -50,
-        y: Math.random() * (canvas.height - 100) + 50,
-        speedX: Math.random() * 5 + 4, // سرعة عالية
-        speedY: (Math.random() - 0.5) * 4, // حركة متعرجة
-        size: Math.random() * 20 + 20,
-        color: "#3e2723"
-    };
+# 2. قاموس الذكاء الاصطناعي للهوية الهندسية (Knowledge Base)
+# ده "المخ" اللي بيعرف الخامة بتستخدم في إيه
+AI_KNOWLEDGE = {
+    "كابل": "نقل الطاقة الكهربائية وتغذية اللوحات الرئيسية والفرعية.",
+    "محبس": "التحكم في تدفق السوائل (مياه، حريق، تبريد) ومنع الارتجاع.",
+    "ماسورة": "نقل الموائع مثل مياه التبريد (Chilled Water) أو مكافحة الحريق.",
+    "قاطع": "حماية الدوائر الكهربائية من زيادة الحمل (Overload) أو القصر (Short Circuit).",
+    "طلمبة": "رفع ضغط المياه أو السوائل لضمان وصولها للنقاط المطلوبة.",
+    "خرسانة": "الأعمال الإنشائية والأساسات والهياكل الخرسانية للمباني.",
+    "حديد": "تسليح العناصر الإنشائية لزيادة قدرتها على تحمل أحمال الشد.",
+    "محول": "تحويل الجهد الكهربائي من المتوسط إلى المنخفض لتشغيل المعدات."
 }
 
-// إضافة طيور في البداية
-for(let i=0; i<3; i++) birds.push(createBird());
+# 3. محرك البحث الذكي
+def smart_search(query, dataframe):
+    query = query.lower()
+    # تنظيف الأعمدة من الأسماء المكررة
+    df_clean = dataframe.loc[:, ~dataframe.columns.duplicated()]
+    
+    # البحث عن كلمات دلالية في القاموس
+    usage = "لم يتم العثور على وصف دقيق في قاعدة البيانات، ولكن إليك النتائج من الشيت:"
+    for key in AI_KNOWLEDGE:
+        if key in query:
+            usage = AI_KNOWLEDGE[key]
+            break
+            
+    # البحث المرن في الشيت (Fuzzy Matching)
+    # بيبحث في كل الصفوف والأعمدة عن أي كلمة قريبة من الاستعلام
+    mask = df_clean.apply(lambda row: row.astype(str).str.contains(query.split()[0], case=False).any(), axis=1)
+    results = df_clean[mask]
+    
+    return usage, results
 
-canvas.addEventListener('mousemove', (e) => {
-    const rect = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - rect.left;
-    mouse.y = e.clientY - rect.top;
-});
+# 4. بناء التطبيق
+st.markdown('<div class="main-header"><h1 style="color:white; text-align:center;">🔮 محرك بحث Korra الذكي للأصول</h1></div>', unsafe_allow_html=True)
 
-canvas.addEventListener('mousedown', () => {
-    let hit = false;
-    birds.forEach((bird, index) => {
-        let dist = Math.hypot(mouse.x - bird.x, mouse.y - bird.y);
-        if (dist < bird.size) {
-            score += 10;
-            birds[index] = createBird(); // استبدال الطائر المقتول
-            hit = true;
-        }
-    });
-    if (!hit) {
-        misses += 1;
-        score = Math.max(0, score - 2); // عقاب على الضرب العشوائي
-    }
-    scoreEl.innerText = score;
-    missEl.innerText = misses;
-});
-
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // رسم السحاب كخلفية
-    ctx.fillStyle = "white";
-    ctx.beginPath(); ctx.arc(100, 50, 30, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(500, 80, 40, 0, Math.PI*2); ctx.fill();
-
-    // رسم وتحريك الطيور
-    birds.forEach((bird, index) => {
-        bird.x += bird.speedX;
-        bird.y += bird.speedY;
-
-        // لو خرج الطائر من الشاشة يرجع تاني
-        if (bird.x > canvas.width + 50) {
-            birds[index] = createBird();
-        }
-        if (bird.y < 0 || bird.y > canvas.height) bird.speedY *= -1;
-
-        // شكل الطائر (بسيط وسريع)
-        ctx.fillStyle = bird.color;
-        ctx.font = bird.size + "px Arial";
-        ctx.fillText("🦅", bird.x - bird.size/2, bird.y + bird.size/2);
-    });
-
-    // رسم النيشان (Crosshair)
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(mouse.x, mouse.y, 20, 0, Math.PI * 2);
-    ctx.moveTo(mouse.x - 30, mouse.y);
-    ctx.lineTo(mouse.x + 30, mouse.y);
-    ctx.moveTo(mouse.x, mouse.y - 30);
-    ctx.lineTo(mouse.x, mouse.y + 30);
-    ctx.stroke();
-
-    requestAnimationFrame(draw);
-}
-
-draw();
-</script>
-"""
-
-components.html(game_html, height=600)
+# قراءة الملف (data.xlsx)
+if os.path.exists('data.xlsx'):
+    try:
+        df = pd.read_excel('data.xlsx', engine='openpyxl')
+        
+        search_query = st.text_input("🔍 اكتب اسم الخامة (بالعربي أو الإنجليزي) لتعرف استخدامها وأين توجد:", placeholder="مثلاً: كابل، محبس، طلمبة...")
+        
+        if search_query:
+            usage, results = smart_search(search_query, df)
+            
+            col1, col2 = st.columns([1, 2])
+            
+            with col1:
+                st.markdown(f"""
+                <div class="info-card">
+                    <h4 style="color:#004a87;">💡 الاستخدام الهندسي:</h4>
+                    <p style="font-size:18px;">{usage}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+            with col2:
+                st.subheader("📍 النتائج المطابقة في المخزن:")
+                if not results.empty:
+                    st.success(f"وجدنا {len(results)} سجل مطابق لطلبك.")
+                    st.dataframe(results, use_container_width=True)
+                else:
+                    st.warning("لم نجد سجلات مطابقة تماماً في الشيت، حاول كتابة كلمة أبسط.")
+        else:
+            st.info("👋 ابدأ بكتابة اسم أي خامة في خانة البحث أعلاه.")
+            
+    except Exception as e:
+        st.error(f"خطأ في قراءة الملف: {e}")
+else:
+    st.warning("⚠️ ملف data.xlsx غير موجود. من فضلك ارفعه على GitHub ليعمل محرك البحث.")
