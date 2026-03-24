@@ -1,70 +1,65 @@
 import streamlit as st
-import pandas as pd
-import os
-import plotly.express as px
 
-# 1. إعدادات الواجهة الاحترافية لشركة Korra
-st.set_page_config(page_title="Korra Inventory Hub", layout="wide")
+# 1. إعدادات الواجهة الموسوعية
+st.set_page_config(page_title="Korra Engineering Wiki", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
     * { font-family: 'Cairo', sans-serif; direction: rtl; }
-    .stApp { background-color: #f4f7f9; }
-    .main-header { background: #004a87; color: white; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 20px; }
-    .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #004a87; }
+    .main-header { background: #004a87; color: white; padding: 25px; border-radius: 15px; text-align: center; margin-bottom: 30px; }
+    .material-card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; border-right: 8px solid #ffb800; }
+    .material-title { color: #004a87; font-size: 24px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. محرك معالجة البيانات (مع حل مشكلة الأسماء المكررة)
-@st.cache_data
-def load_and_clean_data():
-    files = [f for f in os.listdir('.') if f.lower().endswith(('.xlsx', '.xls'))]
-    if not files: return None
-    
-    all_data = []
-    for f in files:
-        try:
-            df = pd.read_excel(f, engine='openpyxl')
-            # حل مشكلة الصورة 12: حذف الأعمدة المكررة تلقائياً
-            df = df.loc[:, ~df.columns.duplicated()]
-            df = df.fillna("---")
-            df['المصدر'] = f
-            all_data.append(df)
-        except: continue
-    
-    return pd.concat(all_data, ignore_index=True) if all_data else None
+# 2. قاعدة بيانات الموسوعة (تقدر تزود عليها براحتك)
+materials_db = [
+    {
+        "name": "كابلات الجهد المتوسط (MV Cables)",
+        "use": "تستخدم لنقل الطاقة من محطات التوزيع الرئيسية إلى المحولات الفرعية في المشروعات الكبرى.",
+        "image": "https://p.globalsources.com/IMAGES/PDT/BIG/311/B1187424311.jpg",
+        "category": "⚡ كهرباء"
+    },
+    {
+        "name": "محابس السكين (Gate Valves)",
+        "use": "تستخدم في أنظمة الحريق ومحطات المياه للتحكم الكامل في تدفق السوائل (فتح أو غلق تام).",
+        "image": "https://5.imimg.com/data5/SELLER/Default/2022/9/XF/OI/XQ/4491703/cast-iron-gate-valve-500x500.jpg",
+        "category": "🔧 ميكانيكا"
+    },
+    {
+        "name": "المواسير المعزولة (Pre-insulated Pipes)",
+        "use": "تستخدم في أنظمة التبريد المركزي (District Cooling) للحفاظ على درجة حرارة المياه وتقليل الفقد الحراري.",
+        "image": "https://www.isoplus.org/media/1336/isoplus-pre-insulated-pipes.jpg",
+        "category": "🔧 ميكانيكا"
+    }
+]
 
-# 3. بناء لوحة التحكم
-st.markdown('<div class="main-header"><h1>📊 مستودع Korra الرقمي للأصول</h1></div>', unsafe_allow_html=True)
+# 3. بناء الصفحة
+st.markdown('<div class="main-header"><h1>📚 موسوعة Korra للأصول الهندسية</h1><p>دليلك الشامل لاستخدامات ومواصفات الخامات</p></div>', unsafe_allow_html=True)
 
-df = load_and_clean_data()
+# قائمة جانبية للتصفية
+st.sidebar.header("🔍 تصفح حسب القسم")
+cat_filter = st.sidebar.selectbox("اختر القسم:", ["الكل", "⚡ كهرباء", "🔧 ميكانيكا"])
 
-if df is not None:
-    # عرض إحصائيات سريعة (البطاقات)
-    c1, c2, c3 = st.columns(3)
-    with c1: st.markdown(f'<div class="stat-card"><h3>{len(df)}</h3><p>إجمالي الأصناف</p></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="stat-card"><h3>{len(df.columns)-1}</h3><p>حقول البيانات</p></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="stat-card"><h3>{df["المصدر"].nunique()}</h3><p>ملفات نشطة</p></div>', unsafe_allow_html=True)
+search = st.sidebar.text_input("ابحث عن خامة محددة:")
 
-    st.divider()
-    
-    tab1, tab2 = st.tabs(["📋 استعراض المخزون المتاح", "📈 تحليل البيانات"])
-    
-    with tab1:
-        search = st.text_input("🔍 ابحث عن أي خامة (مثلاً: كابل، محبس، حديد)...")
-        if search:
-            results = df[df.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)]
-            st.dataframe(results, use_container_width=True)
-        else:
-            st.dataframe(df, use_container_width=True)
-            
-    with tab2:
-        # حل مشكلة الصورة 1: التأكد من وجود بيانات قبل الرسم
-        st.subheader("توزيع الأصناف حسب ملف المصدر")
-        file_stats = df['المصدر'].value_counts().reset_index()
-        file_stats.columns = ['الملف', 'العدد']
-        fig = px.pie(file_stats, values='العدد', names='الملف', hole=0.4, color_discrete_sequence=px.colors.qualitative.Set3)
-        st.plotly_chart(fig, use_container_width=True)
-else:
-    st.warning("👋 بانتظار رفع ملف data.xlsx في GitHub لبدء عرض لوحة التحكم.")
+# عرض الخامات
+for mat in materials_db:
+    if (cat_filter == "الكل" or mat['category'] == cat_filter) and (search.lower() in mat['name'].lower()):
+        with st.container():
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.image(mat['image'], use_container_width=True)
+            with col2:
+                st.markdown(f"""
+                <div class="material-card">
+                    <div class="material-title">{mat['name']}</div>
+                    <p style="color: #666; font-size: 14px;"><b>القسم:</b> {mat['category']}</p>
+                    <p><b>الاستخدام الأساسي:</b> {mat['use']}</p>
+                    <button style="background:#004a87; color:white; border:none; padding:8px 15px; border-radius:5px;">قراءة المواصفات الفنية</button>
+                </div>
+                """, unsafe_allow_html=True)
+
+if not materials_db:
+    st.info("لم يتم العثور على خامات تطابق بحثك.")
