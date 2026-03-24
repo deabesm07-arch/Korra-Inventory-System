@@ -1,109 +1,49 @@
 import streamlit as st
 import pandas as pd
 import os
-import re
-from fuzzywuzzy import fuzz
-from io import BytesIO
 import plotly.express as px
 
-# --- 1. الهوية البصرية للمشروع ---
-st.set_page_config(page_title="Korra Smart-Asset Oracle", layout="wide")
+# 1. إعدادات الواجهة
+st.set_page_config(page_title="Korra Oracle", layout="wide")
 
-st.markdown("""
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
-    * { font-family: 'Cairo', sans-serif; direction: rtl; }
-    .main-title { background: linear-gradient(90deg, #004a87, #00c6ff); color: white; padding: 30px; border-radius: 20px; text-align: center; margin-bottom: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
-    .feature-card { background: white; padding: 20px; border-radius: 15px; border-right: 5px solid #ffb800; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; }
-    </style>
-""", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #004a87;'>🔮 Korra Smart-Asset Oracle</h1>", unsafe_allow_html=True)
 
-# --- 2. عقل النظام (Processing Engine) ---
-class AssetOracle:
-    @staticmethod
-    def normalize_text(text):
-        if not isinstance(text, str): return str(text).lower()
-        text = text.lower().strip()
-        text = re.sub(r"[أإآ]", "ا", text)
-        text = re.sub(r"ة", "ه", text)
-        text = re.sub(r"ي", "ى", text)
-        return text
+# 2. محرك قراءة البيانات
+@st.cache_data
+def load_data():
+    files = [f for f in os.listdir('.') if f.endswith(('.xlsx', '.xls'))]
+    if not files: return None
+    all_dfs = []
+    for f in files:
+        try:
+            temp_df = pd.read_excel(f).fillna("---")
+            temp_df['المصدر'] = f
+            all_dfs.append(temp_df)
+        except: continue
+    return pd.concat(all_dfs, ignore_index=True) if all_dfs else None
 
-    @staticmethod
-    def get_category(desc):
-        desc = str(desc).lower()
-        mapping = {
-            '⚡ كهرباء': ['cable', 'wire', 'breaker', 'كابل', 'سلك', 'قاطع'],
-            '🔧 ميكانيكا': ['pipe', 'valve', 'pump', 'محبس', 'ماسور', 'طلمب'],
-            '🏗️ مدني': ['steel', 'cement', 'حديد', 'خرسان', 'بناء'],
-            '🛠️ أدوات': ['tool', 'drill', 'عده', 'شاكوش', 'مفك']
-        }
-        for cat, keys in mapping.items():
-            if any(k in desc for k in keys): return cat
-        return '📦 عام'
+df = load_data()
 
-    @staticmethod
-    @st.cache_data(ttl=600)
-    def load_universe():
-        files = [f for f in os.listdir('.') if f.endswith(('.xlsx', '.xls'))]
-        if not files: return None
-        
-        all_dfs = []
-        for f in files:
-            try:
-                df = pd.read_excel(f).fillna("---")
-                df['المصدر'] = f
-                all_dfs.append(df)
-            except: continue
-        
-        if not all_dfs: return None
-        master = pd.concat(all_dfs, ignore_index=True)
-        # تحديد عمود الوصف (غالباً التاني)
-        desc_col = master.columns[1] if len(master.columns) > 1 else master.columns[0]
-        master['التصنيف الذكي'] = master[desc_col].apply(AssetOracle.get_category)
-        return master
-
-# --- 3. واجهة المستخدم ---
-st.markdown('<div class="main-title"><h1>🔮 Korra Smart-Asset Oracle</h1><p>تحويل بيانات المخازن إلى قرارات ذكية</p></div>', unsafe_allow_html=True)
-
-oracle_data = AssetOracle.load_universe()
-
-if oracle_data is not None:
-    tab1, tab2, tab3 = st.tabs(["🔍 الرادار (البحث)", "📊 التحليل الاستراتيجي", "🤖 مساعد AI"])
-
+# 3. عرض المحتوى
+if df is not None:
+    tab1, tab2 = st.tabs(["🔍 محرك البحث", "📊 التحليل الاستراتيجي"])
+    
     with tab1:
-        st.subheader("ابحث عن أي أصل هندسي")
-        search_q = st.text_input("اكتب اسم الخامة، الكود، أو الوصف (عربي/إنجليزي):")
-        
-        if search_q:
-            q = AssetOracle.normalize_text(search_q)
-            # محرك البحث بالتقارب (Fuzzy Logic)
-            mask = oracle_data.apply(lambda row: any(fuzz.partial_ratio(q, AssetOracle.normalize_text(str(val))) > 85 for val in row), axis=1)
-            results = oracle_data[mask]
+        query = st.text_input("🎯 ابحث عن أي خامة أو كود:")
+        if query:
+            # بحث شامل في كل الأعمدة
+            mask = df.apply(lambda row: row.astype(str).str.contains(query, case=False).any(), axis=1)
+            results = df[mask]
+            st.success(f"وجدنا {len(results)} سجل.")
+            st.dataframe(results, use_container_width=True)
             
-            if not results.empty:
-                st.success(f"تم رصد {len(results)} خامة مطابقة.")
-                st.dataframe(results.drop(columns=['التصنيف الذكي'], errors='ignore'), use_container_width=True)
-            else:
-                st.warning("لم يتم العثور على نتائج دقيقة. جرب كلمات أقل.")
-
     with tab2:
-        st.subheader("تحليل توزيع الأصول")
-        c1, c2 = st.columns(2)
-        with c1:
-            fig = px.pie(oracle_data, names='التصنيف الذكي', title='توزيع الأصناف حسب التخصص', hole=0.4)
+        st.subheader("تحليل كثافة البيانات")
+        if not df.empty:
+            # حل مشكلة الصورة الثانية: التأكد من وجود أعمدة كافية للرسم
+            source_counts = df['المصدر'].value_counts().reset_index()
+            source_counts.columns = ['اسم الملف', 'عدد الأصناف']
+            fig = px.bar(source_counts, x='اسم الملف', y='عدد الأصناف', title="عدد الأصناف لكل ملف مرفوع")
             st.plotly_chart(fig, use_container_width=True)
-        with c2:
-            fig2 = px.bar(oracle_data['المصدر'].value_counts().reset_index(), x='index', y='المصدر', title='كثافة البيانات لكل مشروع')
-            st.plotly_chart(fig2, use_container_width=True)
-
-    with tab3:
-        st.info("هنا سيتم ربط النظام بـ ChatGPT لتحليل معدل الاستهلاك مستقبلاً.")
-        st.markdown("""
-        **المميزات القادمة:**
-        * الربط مع كاميرا الموبايل للتعرف على القطع.
-        * التنبؤ التلقائي بموعد نفاذ المخزون.
-        """)
-
 else:
-    st.error("⚠️ ارفع ملفات الإكسيل أولاً في المجلد الرئيسي.")
+    st.warning("👋 من فضلك ارفع ملف إكسيل (.xlsx) في المستودع ليعمل النظام.")
